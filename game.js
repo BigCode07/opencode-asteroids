@@ -209,11 +209,12 @@ class ShootingStar {
 // Cada skin varía únicamente la paleta: color de línea y de llamas.
 // La silueta (vértices) se mantiene idéntica en todas.
 const SKINS = [
-  { id: 'classic', name: 'Clásica', stroke: '#fff', thrust: '#ff8200', thrustBoost: '#0ff' },
-  { id: 'crimson', name: 'Carmesí', stroke: '#ff3b3b', thrust: '#ffaa00', thrustBoost: '#fff' },
-  { id: 'ember',   name: 'Brasa',   stroke: '#ff8a2b', thrust: '#ff3b3b', thrustBoost: '#ffd700' },
-  { id: 'toxic',   name: 'Tóxica',  stroke: '#a6ff3b', thrust: '#3bff8a', thrustBoost: '#0ff' },
-  { id: 'plasma',  name: 'Plasma',  stroke: '#ff3bff', thrust: '#a23bff', thrustBoost: '#3b9bff' },
+  { id: 'classic', name: 'Clásica', stroke: '#fff',    thrust: '#ff8200', thrustBoost: '#0ff',    size: 1, scoreMult: 1 },
+  { id: 'crimson', name: 'Carmesí', stroke: '#ff3b3b', thrust: '#ffaa00', thrustBoost: '#fff',    size: 1, scoreMult: 1 },
+  { id: 'ember',   name: 'Brasa',   stroke: '#ff8a2b', thrust: '#ff3b3b', thrustBoost: '#ffd700', size: 1, scoreMult: 1 },
+  { id: 'toxic',   name: 'Tóxica',  stroke: '#a6ff3b', thrust: '#3bff8a', thrustBoost: '#0ff',    size: 1, scoreMult: 1 },
+  { id: 'plasma',  name: 'Plasma',  stroke: '#ff3bff', thrust: '#a23bff', thrustBoost: '#3b9bff', size: 1, scoreMult: 1 },
+  { id: 'morada',  name: 'Morada',  stroke: '#b026ff', thrust: '#e066ff', thrustBoost: '#ffd6ff', size: 2, scoreMult: 2 },
 ];
 const SKIN_STORAGE_KEY = 'asteroids.skin';
 let selectedSkinIdx = 0;
@@ -246,7 +247,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * (currentSkin().size || 1);
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -286,7 +287,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * (currentSkin().size || 1);
     const cx = Math.cos(this.angle);
     const cy = Math.sin(this.angle);
     if (this.tripleShot <= 0) {
@@ -307,10 +308,12 @@ class Ship {
     const hideBody = this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0;
 
 const skin = currentSkin();
+    const SZ = skin.size || 1;
     if (!hideBody) {
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
+      ctx.scale(SZ, SZ);
       ctx.strokeStyle = skin.stroke;
       ctx.lineWidth   = 1.5;
       ctx.lineJoin    = 'round';
@@ -613,7 +616,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        score += POINTS[a.size] * (currentSkin().scoreMult || 1);
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         if (a.size === 3 && Math.random() < POWERUP_DROP_CHANCE) {
@@ -632,7 +635,7 @@ function update(dt) {
       if (!s.dead && !b.dead && dist(b, s) < s.radius) {
         b.dead = true;
         s.dead = true;
-        score += SHOOTING_STAR_POINTS;
+        score += SHOOTING_STAR_POINTS * (currentSkin().scoreMult || 1);
         explode(s.x, s.y, 12);
       }
     }
@@ -701,9 +704,11 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const SZ = currentSkin().size || 1;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
+  ctx.scale(SZ, SZ);
   ctx.strokeStyle = currentSkin().stroke;
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
@@ -727,8 +732,9 @@ function drawHUD() {
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
 
+  const lifeStep = 22 * (currentSkin().size || 1);
   for (let i = 0; i < lives; i++)
-    drawLifeIcon(W - 16 - i * 22, 18);
+    drawLifeIcon(W - 16 - i * lifeStep, 18);
 
   // Indicador de power-up Velocidad
   let hudY = 38;
@@ -838,9 +844,10 @@ function drawMenu() {
     }
 
     // Vista previa de la silueta en el color de la skin
+    const previewSZ = Math.min((skin.size || 1) * 1.2, 1.6);
     ctx.save();
     ctx.translate(180, y - 6);
-    ctx.scale(1.2, 1.2);
+    ctx.scale(previewSZ, previewSZ);
     ctx.strokeStyle = skin.stroke;
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
