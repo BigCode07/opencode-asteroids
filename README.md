@@ -48,7 +48,8 @@ Luego visita `http://localhost:3000`.
 - Power-up **Velocidad**: duplica el empuje de la nave durante 5 segundos
 - Power-up **Triple disparo**: la nave dispara 3 balas en fila india durante 5 segundos
 - Power-up **Escudo**: anillo protector que destruye asteroides al contactar la nave durante 6 segundos
-- **Skins de nave**: menú de selección con 5 apariencias, persistencia en `localStorage`
+- **Skins de nave**: menú de selección con 6 apariencias, persistencia en `localStorage`
+- **Nave Morada**: skin especial el doble de grande que la original que otorga el doble de puntos al destruir asteroides y estrellas fugaces
 
 ## Power-ups
 
@@ -72,18 +73,20 @@ impacto consume 1 segundo de duración; al agotarse el escudo desaparece.
 
 ## Skins
 
-Al abrir el juego aparece un menú de selección de nave con cinco apariencias
+Al abrir el juego aparece un menú de selección de nave con seis apariencias
 que varían el color de la silueta y de la llama del propulsor (incluido el
 efecto del power-up Velocidad). La última skin elegida se guarda en el
-navegador y vuelve a estar seleccionada al recargar la página.
+navegador y vuelve a estar seleccionada al recargar la página. La nave
+**Morada** es el doble de grande y otorga el doble de puntos.
 
-| Skin      | Color de línea | Llama normal  | Llama con Velocidad |
-| --------- | -------------- | ------------ | ------------------- |
-| Clásica   | Blanco         | Naranja      | Cian                |
-| Carmesí   | Rojo           | Ámbar        | Blanco              |
-| Brasa     | Naranja        | Rojo         | Dorado              |
-| Tóxica    | Lima           | Verde        | Cian                |
-| Plasma    | Magenta        | Violeta     | Azul                |
+| Skin      | Color de línea | Llama normal  | Llama con Velocidad | Tamaño | Multiplicador de puntos |
+| --------- | -------------- | ------------ | ------------------- | ------ | ----------------------- |
+| Clásica   | Blanco         | Naranja      | Cian                | 1×     | 1×                      |
+| Carmesí   | Rojo           | Ámbar        | Blanco              | 1×     | 1×                      |
+| Brasa     | Naranja        | Rojo         | Dorado              | 1×     | 1×                      |
+| Tóxica    | Lima           | Verde        | Cian                | 1×     | 1×                      |
+| Plasma    | Magenta        | Violeta     | Azul                | 1×     | 1×                      |
+| Morada    | Morado         | Magenta claro | Rosa claro        | 2×     | 2×                      |
 
 Para cambiar de skin durante la partida, tras el Game Over se vuelve al menú
 presionando `Espacio`.
