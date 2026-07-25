@@ -1,0 +1,125 @@
+name: Format Issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: format-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  format-issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure gh CLI
+        run: echo "GH_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_ENV"
+
+      - name: Format issue (labels + body)
+        env:
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TEMPLATE_FILE: .github/ISSUE_REVIEW_TEMPLATE.md
+        run: |
+          set -euo pipefail
+
+          # Traemos el body de la API (GitHub event puede entregarlo incompleto)
+          ISSUE_JSON="$(gh issue view "$ISSUE_NUMBER" --json title,body,author,url)"
+          BODY_ORIGINAL="$(printf '%s' "$ISSUE_JSON" | jq -r '.body // ""')"
+          TITLE="$(printf '%s' "$ISSUE_JSON" | jq -r '.title // ""')"
+          AUTHOR="$(printf '%s' "$ISSUE_JSON" | jq -r '.author.login // "unknown"')"
+          ISSUE_URL="$(printf '%s' "$ISSUE_JSON" | jq -r '.url // ""')"
+          TODAY="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+          if [ -z "$BODY_ORIGINAL" ]; then
+            BODY_ORIGINAL="_Sin descripción proporcionada por el autor._"
+          fi
+
+          # ------------------------------------------------------------------
+          # 1. Labels base a garantizar (name => "color;descripcion")
+          # ------------------------------------------------------------------
+          declare -A BASE_LABELS=(
+            [bug]="d73a4a;Algo no funciona como se espera"
+            [enhancement]="a2eeef;Nueva funcionalidad o mejora"
+            [question]="d876e3;Consulta o duda"
+            [needs-triage]="fbca04;Requiere revisión inicial del equipo"
+            [documentation]="0075ca;Mejoras o correcciones en documentacion"
+            [good-first-issue]="7057ff;Buen candidato para primer aporte"
+          )
+
+          for name in "${!BASE_LABELS[@]}"; do
+            entry="${BASE_LABELS[$name]}"
+            color="${entry%%;*}"
+            desc="${entry#*;}"
+            if ! gh label list --limit 200 --json name --jq '.[].name' | grep -qx "$name"; then
+              gh label create "$name" --color "$color" --description "$desc" || \
+                echo "::warning::No se pudo crear label '$name'"
+            fi
+          done
+
+          # ------------------------------------------------------------------
+          # 2. Auto-labeleo por keywords en titulo + body
+          # ------------------------------------------------------------------
+          TEXT="${TITLE}${BODY_ORIGINAL}"
+          LABELS_TO_ADD=()
+
+          kw_match() {
+            local pattern="$1"; shift
+            if printf '%s' "$TEXT" | grep -qiE "$pattern"; then
+              for l in "$@"; do
+                if [[ " ${LABELS_TO_ADD[*]} " != *" $l "* ]]; then
+                  LABELS_TO_ADD+=("$l")
+                fi
+              done
+            fi
+          }
+
+          kw_match 'bug|error|fallo|crash|excepci[oó]n|panic|broken|no funciona' bug
+          kw_match 'feature|funcionalidad|mejora|agregar|nuevo|solicito|propongo' enhancement
+          kw_match 'pregunta|duda|c[oó]mo|ayuda|consult' question
+          kw_match 'doc|documentaci[oó]n|readme|manual|gu[ií]a' documentation
+
+          if [ "${#LABELS_TO_ADD[@]}" -eq 0 ]; then
+            LABELS_TO_ADD+=(needs-triage)
+          elif [[ " ${LABELS_TO_ADD[*]} " != *" needs-triage "* ]]; then
+            LABELS_TO_ADD+=(needs-triage)
+          fi
+
+          LABEL_ARGS=()
+          for l in "${LABELS_TO_ADD[@]}"; do
+            LABEL_ARGS+=(--label "$l")
+          done
+          gh issue edit "$ISSUE_NUMBER" "${LABEL_ARGS[@]}" || \
+            echo "::warning::No se pudieron aplicar labels: ${LABELS_TO_ADD[*]}"
+
+          # ------------------------------------------------------------------
+          # 3. Reformateo del body
+          #    body original (intacto) > separador > plantilla sustituida
+          # ------------------------------------------------------------------
+          LABELS_CSV="$(printf '%s, ' "${LABELS_TO_ADD[@]}"; printf '\b\b')"
+
+          export ISSUE_NUMBER AUTHOR ISSUE_URL TODAY REPO_DEFAULT_BRANCH
+          export LABELS_APPLIED="$LABELS_CSV"
+
+          RENDERED_TEMPLATE="$(envsubst \
+            '${ISSUE_NUMBER} ${AUTHOR} ${ISSUE_URL} ${TODAY} ${REPO_DEFAULT_BRANCH} ${LABELS_APPLIED}' \
+            < "$TEMPLATE_FILE")"
+
+          {
+            printf '%s\n\n' "$BODY_ORIGINAL"
+            printf '%s\n' '---'
+            printf '%s\n' "$RENDERED_TEMPLATE"
+          } > /tmp/new_body.md
+
+          gh issue edit "$ISSUE_NUMBER" --body-file /tmp/new_body.md
+
+          echo "::notice::Issue #$ISSUE_NUMBER formateado. Labels: ${LABELS_TO_ADD[*]}"
