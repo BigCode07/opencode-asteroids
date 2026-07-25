@@ -24,11 +24,13 @@ Luego visita `http://localhost:3000`.
 
 ## Controles
 
-| Tecla     | Acción     |
-| --------- | ---------- |
-| `←` `→`   | Rotar nave |
-| `↑`       | Propulsar  |
-| `Espacio` | Disparar   |
+| Tecla     | Acción                        |
+| --------- | ----------------------------- |
+| `←` `→`   | Rotar nave                    |
+| `↑`       | Propulsar                     |
+| `Espacio` | Disparar / Confirmar en menú  |
+| `↑` `↓`   | Navegar selección de skin     |
+| `Enter`   | Confirmar selección de skin   |
 
 ## Puntuación
 
@@ -45,6 +47,7 @@ Luego visita `http://localhost:3000`.
 - Partículas de explosión al destruir asteroides
 - Power-up **Velocidad**: duplica el empuje de la nave durante 5 segundos
 - Power-up **Triple disparo**: la nave dispara 3 balas en fila india durante 5 segundos
+- **Skins de nave**: menú de selección con 5 apariencias, persistencia en `localStorage`
 
 ## Power-ups
 
@@ -60,3 +63,21 @@ si no se recoge (parpadea en el último segundo).
 
 Ambos efectos pueden estar activos a la vez. El efecto activo se pierde si la
 nave es destruida. Los items en pantalla se limpian al completar un nivel.
+
+## Skins
+
+Al abrir el juego aparece un menú de selección de nave con cinco apariencias
+que varían el color de la silueta y de la llama del propulsor (incluido el
+efecto del power-up Velocidad). La última skin elegida se guarda en el
+navegador y vuelve a estar seleccionada al recargar la página.
+
+| Skin      | Color de línea | Llama normal  | Llama con Velocidad |
+| --------- | -------------- | ------------ | ------------------- |
+| Clásica   | Blanco         | Naranja      | Cian                |
+| Carmesí   | Rojo           | Ámbar        | Blanco              |
+| Brasa     | Naranja        | Rojo         | Dorado              |
+| Tóxica    | Lima           | Verde        | Cian                |
+| Plasma    | Magenta        | Violeta     | Azul                |
+
+Para cambiar de skin durante la partida, tras el Game Over se vuelve al menú
+presionando `Espacio`.
