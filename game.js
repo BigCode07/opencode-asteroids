@@ -68,6 +68,10 @@ const POWERUP_LIFETIME       = 8;    // s que el item vive en pantalla
 const POWERUP_DROP_CHANCE    = 0.18;  // prob. de drop al destruir asteroide grande
 const POWERUP_SPEED_DURATION = 5;     // duración del efecto al recogerlo
 const THRUST_BOOST_MULT      = 2;     // multiplicador de empuje durante el boost
+const POWERUP_TYPES          = ['speed', 'triple'];
+const POWERUP_TRIPLE_DURATION = 5;     // duración del triple disparo
+const TRIPLE_COUNT           = 3;     // nº de balas por disparo
+const TRIPLE_OFFSET          = 7;     // px de desfase longitudinal entre balas
 
 // ── Estrella fugaz (asteroide especial) ───────────────────────────────────────
 const SHOOTING_STAR_SPEED    = 250;   // px/s (3x asteroide más rápido)
@@ -212,6 +216,7 @@ class Ship {
     this.shootCooldown = 0;
     this.dead          = false;
     this.speedBoost    = 0;
+    this.tripleShot    = 0;
   }
 
   update(dt) {
@@ -219,6 +224,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+    if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
     const ROT    = 3.5;                                       // rad/s
     const THRUST = this.speedBoost > 0 ? 260 * THRUST_BOOST_MULT : 260;  // px/s²
@@ -243,9 +249,18 @@ class Ship {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
     const NOSE = 21;
-    const ox = this.x + Math.cos(this.angle) * NOSE;
-    const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+    const cx = Math.cos(this.angle);
+    const cy = Math.sin(this.angle);
+    if (this.tripleShot <= 0) {
+      return [new Bullet(this.x + cx * NOSE, this.y + cy * NOSE, this.angle)];
+    }
+    // Triple: 3 balas en fila india con desfase longitudinal
+    const shots = [];
+    for (let i = 0; i < TRIPLE_COUNT; i++) {
+      const back = i * TRIPLE_OFFSET;
+      shots.push(new Bullet(this.x + cx * (NOSE - back), this.y + cy * (NOSE - back), this.angle));
+    }
+    return shots;
   }
 
   draw() {
@@ -318,10 +333,10 @@ class Particle {
 
 // ── PowerUp ───────────────────────────────────────────────────────────────────
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'speed') {
     this.x      = x;
     this.y      = y;
-    this.type   = 'speed';
+    this.type   = type;
     this.radius = POWERUP_RADIUS;
     const angle = rand(0, Math.PI * 2);
     const speed = rand(20, 50);
@@ -351,27 +366,41 @@ class PowerUp {
     ctx.rotate(this.rot);
 
     // Disco base
-    ctx.fillStyle   = 'rgba(0, 255, 255, 0.18)';
-    ctx.strokeStyle = '#0ff';
+    const isTriple = this.type === 'triple';
+    const accent   = isTriple ? '#ff0' : '#0ff';
+    ctx.fillStyle   = `rgba(${isTriple ? '255, 255, 0' : '0, 255, 255'}, 0.18)`;
+    ctx.strokeStyle = accent;
     ctx.lineWidth   = 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Rayo central
+    // Icono
     ctx.strokeStyle = '#fff';
     ctx.lineWidth   = 2;
     ctx.lineJoin    = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-5, -8);
-    ctx.lineTo( 3, -1);
-    ctx.lineTo(-2, -1);
-    ctx.lineTo( 5,  8);
-    ctx.lineTo(-3,  1);
-    ctx.lineTo( 2,  1);
-    ctx.closePath();
-    ctx.stroke();
+
+    if (isTriple) {
+      // 3 rayas paralelas horizontales
+      ctx.beginPath();
+      for (const dy of [-5, 0, 5]) {
+        ctx.moveTo(-7, dy);
+        ctx.lineTo( 7, dy);
+      }
+      ctx.stroke();
+    } else {
+      // Rayo central (speed)
+      ctx.beginPath();
+      ctx.moveTo(-5, -8);
+      ctx.lineTo( 3, -1);
+      ctx.lineTo(-2, -1);
+      ctx.lineTo( 5,  8);
+      ctx.lineTo(-3,  1);
+      ctx.lineTo( 2,  1);
+      ctx.closePath();
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -495,7 +524,8 @@ function update(dt) {
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         if (a.size === 3 && Math.random() < POWERUP_DROP_CHANCE) {
-          powerUps.push(new PowerUp(a.x, a.y));
+          const type = POWERUP_TYPES[randInt(0, POWERUP_TYPES.length - 1)];
+          powerUps.push(new PowerUp(a.x, a.y, type));
         }
       }
     }
@@ -522,7 +552,8 @@ function update(dt) {
     for (const p of powerUps) {
       if (!p.dead && dist(ship, p) < ship.radius + POWERUP_RADIUS) {
         p.dead = true;
-        if (p.type === 'speed') ship.speedBoost = POWERUP_SPEED_DURATION;
+        if (p.type === 'speed')       ship.speedBoost = POWERUP_SPEED_DURATION;
+        else if (p.type === 'triple') ship.tripleShot = POWERUP_TRIPLE_DURATION;
       }
     }
     powerUps = powerUps.filter(p => !p.dead);
@@ -584,11 +615,12 @@ function drawHUD() {
     drawLifeIcon(W - 16 - i * 22, 18);
 
   // Indicador de power-up Velocidad
+  let hudY = 38;
   if (ship.speedBoost > 0) {
     const BAR_W = 60;
     const BAR_H = 5;
     const x = 14;
-    const y = 38;
+    const y = hudY;
 
     ctx.textAlign = 'left';
     ctx.fillStyle = '#0ff';
@@ -603,6 +635,30 @@ function drawHUD() {
     const pct = Math.max(0, ship.speedBoost / POWERUP_SPEED_DURATION);
     ctx.fillStyle = '#0ff';
     ctx.fillRect(x + 32, y - 9, BAR_W * pct, BAR_H);
+
+    hudY += 18;
+  }
+
+  // Indicador de power-up Triple disparo
+  if (ship.tripleShot > 0) {
+    const BAR_W = 60;
+    const BAR_H = 5;
+    const x = 14;
+    const y = hudY;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ff0';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('TRIPLE', x, y);
+
+    // Fondo de la barra
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.25)';
+    ctx.fillRect(x + 56, y - 9, BAR_W, BAR_H);
+
+    // Progreso
+    const pct = Math.max(0, ship.tripleShot / POWERUP_TRIPLE_DURATION);
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(x + 56, y - 9, BAR_W * pct, BAR_H);
   }
 }
 
