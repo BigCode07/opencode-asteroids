@@ -196,6 +196,37 @@ class ShootingStar {
   }
 }
 
+// ── Skins ─────────────────────────────────────────────────────────────────────
+// Cada skin varía únicamente la paleta: color de línea y de llamas.
+// La silueta (vértices) se mantiene idéntica en todas.
+const SKINS = [
+  { id: 'classic', name: 'Clásica', stroke: '#fff', thrust: '#ff8200', thrustBoost: '#0ff' },
+  { id: 'crimson', name: 'Carmesí', stroke: '#ff3b3b', thrust: '#ffaa00', thrustBoost: '#fff' },
+  { id: 'ember',   name: 'Brasa',   stroke: '#ff8a2b', thrust: '#ff3b3b', thrustBoost: '#ffd700' },
+  { id: 'toxic',   name: 'Tóxica',  stroke: '#a6ff3b', thrust: '#3bff8a', thrustBoost: '#0ff' },
+  { id: 'plasma',  name: 'Plasma',  stroke: '#ff3bff', thrust: '#a23bff', thrustBoost: '#3b9bff' },
+];
+const SKIN_STORAGE_KEY = 'asteroids.skin';
+let selectedSkinIdx = 0;
+
+function loadSelectedSkin() {
+  try {
+    const id = localStorage.getItem(SKIN_STORAGE_KEY);
+    if (id) {
+      const idx = SKINS.findIndex(s => s.id === id);
+      if (idx >= 0) selectedSkinIdx = idx;
+    }
+  } catch (_) { /* localStorage deshabilitado: usar por defecto */ }
+}
+function saveSelectedSkin() {
+  try {
+    localStorage.setItem(SKIN_STORAGE_KEY, SKINS[selectedSkinIdx].id);
+  } catch (_) { /* localStorage deshabilitado: ignorar */ }
+}
+function currentSkin() { return SKINS[selectedSkinIdx]; }
+
+loadSelectedSkin();
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor() { this.reset(); }
@@ -253,10 +284,11 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const skin = currentSkin();
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = skin.stroke;
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
@@ -272,11 +304,17 @@ class Ship {
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
       const boosted = this.speedBoost > 0;
+      const flameColor = boosted ? skin.thrustBoost : skin.thrust;
+      // Convertimos hex (#rrggbb) a rgba con alfa 0.9 / 0.85
+      const r = parseInt(flameColor.slice(1, 3), 16);
+      const g = parseInt(flameColor.slice(3, 5), 16);
+      const b = parseInt(flameColor.slice(5, 7), 16);
+      const alpha = boosted ? 0.9 : 0.85;
       ctx.beginPath();
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(boosted ? 10 : 6, boosted ? 22 : 14), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.9)' : 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
       ctx.stroke();
     }
 
@@ -380,7 +418,7 @@ class PowerUp {
 // ── Estado del juego ──────────────────────────────────────────────────────────
 let ship, bullets, asteroids, particles, powerUps, shootingStars;
 let score, lives, level;
-let state;      // 'playing' | 'dead' | 'gameover'
+let state;      // 'menu' | 'playing' | 'dead' | 'gameover'
 let deadTimer;
 
 function spawnAsteroids(count) {
@@ -415,9 +453,13 @@ function initGame() {
   score  = 0;
   lives  = 3;
   level  = 1;
-  state  = 'playing';
   spawnAsteroids(4);
   spawnShootingStar();
+}
+
+function startGame() {
+  initGame();
+  state = 'playing';
 }
 
 function nextLevel() {
@@ -449,8 +491,24 @@ function killShip() {
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  if (state === 'menu') {
+    if (pressed('ArrowUp')) {
+      selectedSkinIdx = (selectedSkinIdx - 1 + SKINS.length) % SKINS.length;
+      saveSelectedSkin();
+    }
+    if (pressed('ArrowDown')) {
+      selectedSkinIdx = (selectedSkinIdx + 1) % SKINS.length;
+      saveSelectedSkin();
+    }
+    if (pressed('Space') || pressed('Enter')) {
+      saveSelectedSkin();
+      startGame();
+    }
+    return;
+  }
+
   if (state === 'gameover') {
-    if (pressed('Space')) initGame();
+    if (pressed('Space')) state = 'menu';
     particles.forEach(p => p.update(dt));
     particles = particles.filter(p => !p.dead);
     return;
@@ -557,7 +615,7 @@ function drawLifeIcon(x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = currentSkin().stroke;
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
   ctx.beginPath();
@@ -616,7 +674,75 @@ function drawOverlay(title, sub) {
   ctx.fillText(sub, W / 2, H / 2 + 22);
 }
 
+function drawMenu() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Título
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 38px monospace';
+  ctx.fillText('SELECCIONA TU NAVE', W / 2, 70);
+
+  // Lista de skins con vista previa
+  const rowH    = 64;
+  const listTop = 130;
+
+  for (let i = 0; i < SKINS.length; i++) {
+    const skin = SKINS[i];
+    const y    = listTop + i * rowH;
+    const sel  = i === selectedSkinIdx;
+
+    // Fila resaltada
+    if (sel) {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(120, y - 24, W - 240, rowH - 8);
+    }
+
+    // Vista previa de la silueta en el color de la skin
+    ctx.save();
+    ctx.translate(180, y - 6);
+    ctx.scale(1.2, 1.2);
+    ctx.strokeStyle = skin.stroke;
+    ctx.lineWidth   = 1.5;
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo( 20,  0);
+    ctx.lineTo(-12, -9);
+    ctx.lineTo( -7,  0);
+    ctx.lineTo(-12,  9);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Nombre
+    ctx.textAlign = 'left';
+    ctx.fillStyle = sel ? '#fff' : 'rgba(255,255,255,0.55)';
+    ctx.font = `${sel ? 'bold ' : ''}22px monospace`;
+    ctx.fillText(skin.name, 230, y);
+
+    // Marcador de selección
+    if (sel) {
+      ctx.fillStyle = skin.stroke;
+      ctx.beginPath();
+      ctx.moveTo(118, y - 6);
+      ctx.lineTo(128, y);
+      ctx.lineTo(118, y + 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Instrucciones
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = '16px monospace';
+  ctx.fillText('↑ ↓ ELEGIR   ·   ESPACIO/ENTER JUGAR', W / 2, H - 40);
+}
+
 function draw() {
+  if (state === 'menu') { drawMenu(); return; }
+
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
@@ -630,7 +756,7 @@ function draw() {
   drawHUD();
 
   if (state === 'gameover')
-    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`);
+    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA VOLVER AL MENÚ`);
 }
 
 // ── Loop principal ────────────────────────────────────────────────────────────
@@ -644,5 +770,5 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-initGame();
+state = 'menu';
 requestAnimationFrame(loop);
