@@ -209,11 +209,12 @@ class ShootingStar {
 // Cada skin varía únicamente la paleta: color de línea y de llamas.
 // La silueta (vértices) se mantiene idéntica en todas.
 const SKINS = [
-  { id: 'classic', name: 'Clásica', stroke: '#fff', thrust: '#ff8200', thrustBoost: '#0ff' },
-  { id: 'crimson', name: 'Carmesí', stroke: '#ff3b3b', thrust: '#ffaa00', thrustBoost: '#fff' },
-  { id: 'ember',   name: 'Brasa',   stroke: '#ff8a2b', thrust: '#ff3b3b', thrustBoost: '#ffd700' },
-  { id: 'toxic',   name: 'Tóxica',  stroke: '#a6ff3b', thrust: '#3bff8a', thrustBoost: '#0ff' },
-  { id: 'plasma',  name: 'Plasma',  stroke: '#ff3bff', thrust: '#a23bff', thrustBoost: '#3b9bff' },
+  { id: 'classic', name: 'Clásica', stroke: '#fff', thrust: '#ff8200', thrustBoost: '#0ff', scale: 1, scoreMult: 1 },
+  { id: 'crimson', name: 'Carmesí', stroke: '#ff3b3b', thrust: '#ffaa00', thrustBoost: '#fff', scale: 1, scoreMult: 1 },
+  { id: 'ember',   name: 'Brasa',   stroke: '#ff8a2b', thrust: '#ff3b3b', thrustBoost: '#ffd700', scale: 1, scoreMult: 1 },
+  { id: 'toxic',   name: 'Tóxica',  stroke: '#a6ff3b', thrust: '#3bff8a', thrustBoost: '#0ff', scale: 1, scoreMult: 1 },
+  { id: 'plasma',  name: 'Plasma',  stroke: '#ff3bff', thrust: '#a23bff', thrustBoost: '#3b9bff', scale: 1, scoreMult: 1 },
+  { id: 'majesty', name: 'Majestad',stroke: '#b266ff', thrust: '#ff66ff', thrustBoost: '#ffffff', scale: 2, scoreMult: 2 },
 ];
 const SKIN_STORAGE_KEY = 'asteroids.skin';
 let selectedSkinIdx = 0;
@@ -246,7 +247,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * currentSkin().scale;
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -286,7 +287,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * currentSkin().scale;
     const cx = Math.cos(this.angle);
     const cy = Math.sin(this.angle);
     if (this.tripleShot <= 0) {
@@ -311,6 +312,7 @@ const skin = currentSkin();
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
+      ctx.scale(skin.scale, skin.scale);
       ctx.strokeStyle = skin.stroke;
       ctx.lineWidth   = 1.5;
       ctx.lineJoin    = 'round';
@@ -613,7 +615,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        score += POINTS[a.size] * currentSkin().scoreMult;
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         if (a.size === 3 && Math.random() < POWERUP_DROP_CHANCE) {
@@ -632,7 +634,7 @@ function update(dt) {
       if (!s.dead && !b.dead && dist(b, s) < s.radius) {
         b.dead = true;
         s.dead = true;
-        score += SHOOTING_STAR_POINTS;
+        score += SHOOTING_STAR_POINTS * currentSkin().scoreMult;
         explode(s.x, s.y, 12);
       }
     }
@@ -840,7 +842,8 @@ function drawMenu() {
     // Vista previa de la silueta en el color de la skin
     ctx.save();
     ctx.translate(180, y - 6);
-    ctx.scale(1.2, 1.2);
+    const previewScale = skin.scale === 1 ? 1.2 : 1.2 * 0.6 * skin.scale;
+    ctx.scale(previewScale, previewScale);
     ctx.strokeStyle = skin.stroke;
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
